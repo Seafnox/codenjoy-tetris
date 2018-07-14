@@ -1,19 +1,204 @@
 let Element = {
   // из этих символов состоит строка glass
   EMPTY: ' ', // так выглядит свободное место в стакане
-  BUSY: '*' // а тут уже занято
-}
+  BUSY: '*', // а тут уже занято
+  OWN: '0',
+};
 
-const DO_NOT_ROTATE = 0 // не вращать фигурку
-const ROTATE_90_CLOCKWISE = 1 // повернуть по часовой стрелке один раз
-const ROTATE_180_CLOCKWISE = 2 // повернуть по часовой стрелке два раза
-const ROTATE_90_COUNTERCLOCKWISE = 3 // повернуть против часовой стрелки 1 раз (3 по часовой)
+let FIGURES = {
+  O: "O",
+  I: "I",
+  L: "L",
+  J: "J",
+  S: "S",
+  Z: "Z",
+  T: "T",
+};
+
+let COMMANDS = {
+  LEFT: "left",
+  RIGHT: "right",
+  DROP: "drop",
+  DO_NOT_ROTATE: "rotate=0",
+  ROTATE_90: "rotate=1",
+  ROTATE_180: "rotate=2",
+  ROTATE_270: "rotate=3",
+};
+
+const GLASS_HEIGHT = 20;
+const GLASS_WIDTH = 10;
 
 // метод, говорящий что делать той или иной фигурке figure с координарами x,y в стакане glass. next - очередь следущих фигурок
 let answer = (figure, x, y, glass, next) => {
-  // add "drop" to response when you need to drop a figure
+    console.log('MESSAGE: ' + JSON.stringify({figure, x, y, next}));
+
+    const newGlass = updateGlassByFigure(figure, +x, +y, glass);
+
+    console.log('GLASS:\n' + prepareGlass(newGlass));
+
+    // add "drop" to response when you need to drop a figure
   // for details please check http://codenjoy.com/portal/?p=170#commands
-  return `left=${0}, right=${0}, rotate=${DO_NOT_ROTATE}, drop`
+  return strategyByFigure(figure, x, y, glass);
+};
+
+function prepareGlass(glass) {
+  let result = [];
+  for(let i = 0; i < GLASS_HEIGHT; i++) {
+    result = [
+        glass.slice(i*GLASS_WIDTH, (i+1)*GLASS_WIDTH),
+        ...result,
+      ];
+  }
+
+  return result.join('|\n') + '|';
 }
 
-module.exports = answer
+function updateGlassByFigure(figure, x ,y, glass) {
+  const figureStrategy = {
+    [FIGURES.I]: updateGlassByI,
+    [FIGURES.O]: updateGlassByO,
+    [FIGURES.J]: updateGlassByJ,
+  };
+  if (!figureStrategy[figure]) {
+    throw new Error('No Figure ' + figure);
+  }
+  return figureStrategy[figure](x, y, glass);
+}
+
+function updateGlassByO(x, y, glass) {
+    let newGlass = glass.slice(0);
+    newGlass = `${newGlass.substring(0, (y-1)*GLASS_WIDTH + x)}${Element.OWN}${Element.OWN}${newGlass.substring((y-1)*GLASS_WIDTH + x + 2)}`;
+    newGlass = `${newGlass.substring(0, (y)*GLASS_WIDTH + x)}${Element.OWN}${Element.OWN}${newGlass.substring((y)*GLASS_WIDTH + x + 2)}`;
+    return newGlass;
+}
+
+function updateGlassByI(x, y, glass) {
+    let newGlass = glass.slice(0);
+    newGlass = `${newGlass.substring(0, (y-2)*GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y-2)*GLASS_WIDTH + x + 1)}`;
+    newGlass = `${newGlass.substring(0, (y-1)*GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y-1)*GLASS_WIDTH + x + 1)}`;
+    newGlass = `${newGlass.substring(0, (y)*GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y)*GLASS_WIDTH + x + 1)}`;
+    newGlass = `${newGlass.substring(0, (y+1)*GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y+1)*GLASS_WIDTH + x + 1)}`;
+    return newGlass;
+}
+
+function updateGlassByJ(x, y, glass) {
+    let newGlass = glass.slice(0);
+    newGlass = `${newGlass.substring(0, (y+1)*GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y+1)*GLASS_WIDTH + x + 1)}`;
+    newGlass = `${newGlass.substring(0, (y)*GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y)*GLASS_WIDTH + x + 1)}`;
+    newGlass = `${newGlass.substring(0, (y-1)*GLASS_WIDTH + x - 1)}${Element.OWN}${Element.OWN}${newGlass.substring((y-1)*GLASS_WIDTH + x + 1)}`;
+    return newGlass;
+}
+
+function strategyByFigure(figure, x, y, glass) {
+  const figureStrategy = {
+    [FIGURES.I]: strategyByI,
+    [FIGURES.O]: strategyByO,
+    [FIGURES.J]: strategyByJ,
+  };
+
+  if (!figureStrategy[figure]) {
+    throw new Error('No strategy for ' + figure);
+  }
+
+  return figureStrategy[figure](x, y, glass);
+}
+
+function strategyByJ(x, y, glass) {
+    let minAvailableLeft = GLASS_WIDTH;
+    let command = COMMANDS.LEFT;
+    for(let h = 0; h < GLASS_HEIGHT; h++) {
+        for(let w = 1; w < GLASS_WIDTH; w++) {
+            const positions = [
+                (h)*GLASS_WIDTH + (w),
+                (h+1)*GLASS_WIDTH + (w),
+                (h+2)*GLASS_WIDTH + (w),
+                (h)*GLASS_WIDTH + (w-1),
+                (h+1)*GLASS_WIDTH + (w-1),
+                (h+2)*GLASS_WIDTH + (w-1),
+            ];
+            const availablePositions = positions.filter((position) => glass[position] === Element.EMPTY);
+            if (availablePositions.length === positions.length) {
+                minAvailableLeft = w;
+                break;
+            }
+        }
+        if (minAvailableLeft < GLASS_WIDTH) {
+            break;
+        }
+    }
+
+    let changeXBy = x - minAvailableLeft;
+
+    if (changeXBy < 0) {
+        command = COMMANDS.RIGHT;
+        changeXBy = -changeXBy;
+    }
+
+    return `${command}=${changeXBy}`;
+}
+
+function strategyByI(x, y, glass) {
+    let minAvailableLeft = GLASS_WIDTH;
+    let command = COMMANDS.LEFT;
+    for(let h = 0; h < GLASS_HEIGHT; h++) {
+        for(let w = 0; w < GLASS_WIDTH; w++) {
+            const positions = [
+                (h)*GLASS_WIDTH + (w),
+                (h+1)*GLASS_WIDTH + (w),
+                (h+2)*GLASS_WIDTH + (w),
+                (h+3)*GLASS_WIDTH + (w),
+            ];
+            const availablePositions = positions.filter((position) => glass[position] === Element.EMPTY);
+            if (availablePositions.length === positions.length) {
+                minAvailableLeft = w;
+                break;
+            }
+        }
+        if (minAvailableLeft < GLASS_WIDTH) {
+            break;
+        }
+    }
+
+    let changeXBy = x - minAvailableLeft;
+
+    if (changeXBy < 0) {
+        command = COMMANDS.RIGHT;
+        changeXBy = -changeXBy;
+    }
+
+    return `${command}=${changeXBy}`;
+}
+
+function strategyByO(x, y, glass) {
+  let minAvailableLeft = GLASS_WIDTH;
+  let command = COMMANDS.LEFT;
+  for(let h = 0; h < GLASS_HEIGHT; h++) {
+    for(let w = 0; w < GLASS_WIDTH; w++) {
+      const positions = [
+          (h)*GLASS_WIDTH + (w),
+          (h+1)*GLASS_WIDTH + (w),
+          (h)*GLASS_WIDTH + (w+1),
+          (h+1)*GLASS_WIDTH + (w+1),
+        ];
+      const availablePositions = positions.filter((position) => glass[position] === Element.EMPTY);
+      if (availablePositions.length === positions.length) {
+        minAvailableLeft = w;
+        break;
+      }
+    }
+    if (minAvailableLeft < GLASS_WIDTH - 1) {
+      break;
+    }
+  }
+
+    let changeXBy = x - minAvailableLeft;
+
+  if (changeXBy < 0) {
+    command = COMMANDS.RIGHT;
+    changeXBy = -changeXBy;
+  }
+
+  return `${command}=${changeXBy}`;
+}
+
+module.exports = answer;
