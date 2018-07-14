@@ -118,6 +118,12 @@ function strategyByJ(x, y, glass) {
             ];
             const availablePositions = positions.filter((position) => glass[position] === Element.EMPTY);
             if (availablePositions.length === positions.length) {
+                let pathClean1 = isEmptyPath(w, h, glass);
+                let pathClean2 = isEmptyPath(w-1, h, glass);
+
+                if (!pathClean1 || !pathClean2) {
+                    continue;
+                }
                 minAvailableLeft = w;
                 break;
             }
@@ -134,7 +140,7 @@ function strategyByJ(x, y, glass) {
         changeXBy = -changeXBy;
     }
 
-    return `${command}=${changeXBy}`;
+    return `${command}=${changeXBy}, ${COMMANDS.DROP}`;
 }
 
 function strategyByI(x, y, glass) {
@@ -150,6 +156,12 @@ function strategyByI(x, y, glass) {
             ];
             const availablePositions = positions.filter((position) => glass[position] === Element.EMPTY);
             if (availablePositions.length === positions.length) {
+                let pathClean = isEmptyPath(w, h, glass);
+
+                if (!pathClean) {
+                  continue;
+                }
+
                 minAvailableLeft = w;
                 break;
             }
@@ -166,7 +178,7 @@ function strategyByI(x, y, glass) {
         changeXBy = -changeXBy;
     }
 
-    return `${command}=${changeXBy}`;
+    return `${command}=${changeXBy}, ${COMMANDS.DROP}`;
 }
 
 function strategyByO(x, y, glass) {
@@ -182,7 +194,14 @@ function strategyByO(x, y, glass) {
         ];
       const availablePositions = positions.filter((position) => glass[position] === Element.EMPTY);
       if (availablePositions.length === positions.length) {
-        minAvailableLeft = w;
+          let pathClean1 = isEmptyPath(w, h, glass);
+          let pathClean2 = isEmptyPath(w+1, h, glass);
+
+          if (!pathClean1 || !pathClean2) {
+              continue;
+          }
+
+          minAvailableLeft = w;
         break;
       }
     }
@@ -198,7 +217,18 @@ function strategyByO(x, y, glass) {
     changeXBy = -changeXBy;
   }
 
-  return `${command}=${changeXBy}`;
+  return `${command}=${changeXBy}, ${COMMANDS.DROP}`;
+}
+
+function isEmptyPath(x, y, glass) {
+    let pathClean = true;
+    for (let h1 = y; h1 < GLASS_HEIGHT; h1++) {
+        if (glass[(h1)*GLASS_WIDTH + (x)] !== Element.EMPTY) {
+            pathClean = false;
+            break;
+        }
+    }
+    return pathClean;
 }
 
 module.exports = answer;
