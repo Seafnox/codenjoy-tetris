@@ -1,3 +1,16 @@
+/**
+ *
+ *
+ * Этот трэш я сделал за 4 часа
+ * Здесь куча кода без оптимизации.
+ * Я даже не пытался его оптимизировать.
+ * Это нормально для 4 часов работы.
+ * Только боль, только хардкор!
+ *
+ *
+ *
+ */
+
 let Element = {
   // из этих символов состоит строка glass
   EMPTY: ' ', // так выглядит свободное место в стакане
@@ -34,7 +47,7 @@ let answer = (figure, x, y, glass, next) => {
 
     const newGlass = updateGlassByFigure(figure, +x, +y, glass);
 
-    console.log('GLASS:\n' + prepareGlass(newGlass));
+    // console.log('GLASS:\n' + prepareGlass(newGlass));
 
     // add "drop" to response when you need to drop a figure
   // for details please check http://codenjoy.com/portal/?p=170#commands
@@ -58,6 +71,9 @@ function updateGlassByFigure(figure, x ,y, glass) {
     [FIGURES.I]: updateGlassByI,
     [FIGURES.O]: updateGlassByO,
     [FIGURES.J]: updateGlassByJ,
+    [FIGURES.L]: updateGlassByL,
+    [FIGURES.S]: updateGlassByS,
+    [FIGURES.Z]: updateGlassByZ,
   };
   if (!figureStrategy[figure]) {
     throw new Error('No Figure ' + figure);
@@ -89,11 +105,36 @@ function updateGlassByJ(x, y, glass) {
     return newGlass;
 }
 
+function updateGlassByL(x, y, glass) {
+  let newGlass = glass.slice(0);
+  newGlass = `${newGlass.substring(0, (y+1)*GLASS_WIDTH + x-1)}${Element.OWN}${Element.OWN}${newGlass.substring((y+1)*GLASS_WIDTH + x + 1)}`;
+  newGlass = `${newGlass.substring(0, (y)*GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y)*GLASS_WIDTH + x + 1)}`;
+  newGlass = `${newGlass.substring(0, (y-1)*GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y-1)*GLASS_WIDTH + x + 1)}`;
+  return newGlass;
+}
+
+function updateGlassByS(x, y, glass) {
+  let newGlass = glass.slice(0);
+  newGlass = `${newGlass.substring(0, (y+1)*GLASS_WIDTH + x)}${Element.OWN}${Element.OWN}${newGlass.substring((y+1)*GLASS_WIDTH + x + 2)}`;
+  newGlass = `${newGlass.substring(0, (y)*GLASS_WIDTH + x-1)}${Element.OWN}${Element.OWN}${newGlass.substring((y)*GLASS_WIDTH + x + 1)}`;
+  return newGlass;
+}
+
+function updateGlassByZ(x, y, glass) {
+    let newGlass = glass.slice(0);
+    newGlass = `${newGlass.substring(0, (y+1)*GLASS_WIDTH + x-1)}${Element.OWN}${Element.OWN}${newGlass.substring((y+1)*GLASS_WIDTH + x + 1)}`;
+    newGlass = `${newGlass.substring(0, (y)*GLASS_WIDTH + x)}${Element.OWN}${Element.OWN}${newGlass.substring((y)*GLASS_WIDTH + x + 2)}`;
+    return newGlass;
+}
+
 function strategyByFigure(figure, x, y, glass) {
   const figureStrategy = {
     [FIGURES.I]: strategyByI,
     [FIGURES.O]: strategyByO,
     [FIGURES.J]: strategyByJ,
+    [FIGURES.L]: strategyByL,
+    [FIGURES.S]: strategyByS,
+    [FIGURES.Z]: strategyByZ,
   };
 
   if (!figureStrategy[figure]) {
@@ -104,33 +145,40 @@ function strategyByFigure(figure, x, y, glass) {
 }
 
 function strategyByJ(x, y, glass) {
-    let minAvailableLeft = GLASS_WIDTH;
+  let minAvailableLeft = GLASS_WIDTH;
+  let minAvailableTop = GLASS_HEIGHT;
     let command = COMMANDS.LEFT;
+    let rotate = false;
+    let isStrategy1 = false;
+    let isStrategy2 = false;
     for(let h = 0; h < GLASS_HEIGHT; h++) {
-        for(let w = 1; w < GLASS_WIDTH; w++) {
-            const positions = [
-                (h)*GLASS_WIDTH + (w),
-                (h+1)*GLASS_WIDTH + (w),
-                (h+2)*GLASS_WIDTH + (w),
-                (h)*GLASS_WIDTH + (w-1),
-                (h+1)*GLASS_WIDTH + (w-1),
-                (h+2)*GLASS_WIDTH + (w-1),
-            ];
-            const availablePositions = positions.filter((position) => glass[position] === Element.EMPTY);
-            if (availablePositions.length === positions.length) {
-                let pathClean1 = isEmptyPath(w, h, glass);
-                let pathClean2 = isEmptyPath(w-1, h, glass);
-
-                if (!pathClean1 || !pathClean2) {
-                    continue;
-                }
-                minAvailableLeft = w;
-                break;
+        for(let w = 0; w < GLASS_WIDTH; w++) {
+            if (isStrategyByJ2(w, h, glass)) {
+              isStrategy2 = true;
+              minAvailableLeft = w;
+              rotate = true;    
+              break;
             }
         }
         if (minAvailableLeft < GLASS_WIDTH) {
-            break;
+          minAvailableTop = h;
+          break;
         }
+    }
+    if (!isStrategy2) {
+    for(let h = 0; h < minAvailableTop; h++) {
+        for(let w = 1; w < GLASS_WIDTH; w++) {
+          if (isStrategyByJ1(w, h, glass)) {
+            isStrategy1 = true;
+            minAvailableLeft = w;
+            break;
+          }
+      }
+      if (minAvailableLeft < GLASS_WIDTH) {
+        minAvailableTop = h;
+        break;
+      }
+    }
     }
 
     let changeXBy = x - minAvailableLeft;
@@ -139,8 +187,169 @@ function strategyByJ(x, y, glass) {
         command = COMMANDS.RIGHT;
         changeXBy = -changeXBy;
     }
+    
+    return `${command}=${changeXBy}${rotate ? `, ${COMMANDS.ROTATE_180}` : ''}, ${COMMANDS.DROP}`;
+}
 
-    return `${command}=${changeXBy}, ${COMMANDS.DROP}`;
+function isStrategyByJ1(w, h, glass) {
+  if (w === 0) {
+    return false;
+  }
+  const positions = [
+    (h)*GLASS_WIDTH + (w),
+    (h+1)*GLASS_WIDTH + (w),
+    (h+2)*GLASS_WIDTH + (w),
+    (h)*GLASS_WIDTH + (w-1),
+    (h+1)*GLASS_WIDTH + (w-1),
+    (h+2)*GLASS_WIDTH + (w-1),
+  ];
+  const availablePositions = positions.filter((position) => glass[position] === Element.EMPTY);
+  if (availablePositions.length === positions.length) {
+    let pathClean1 = isEmptyPath(w, h, glass);
+    let pathClean2 = isEmptyPath(w-1, h, glass);
+
+    if (!pathClean1 || !pathClean2) {
+      return false;
+    }
+    return true;
+  }
+
+  return false;
+}
+
+function isStrategyByJ2(w, h, glass) {
+  if (w === GLASS_WIDTH) {
+    return false;
+  }
+  const clnpositions = [
+    (h+2)*GLASS_WIDTH + (w+1),
+    (h)*GLASS_WIDTH + (w),
+    (h+1)*GLASS_WIDTH + (w),
+    (h+2)*GLASS_WIDTH + (w),
+  ];
+  const bssypositions = [
+    (h-1)*GLASS_WIDTH + (w),
+    (h)*GLASS_WIDTH + (w+1),
+    (h+1)*GLASS_WIDTH + (w+1),
+  ]
+  const availablePositions = clnpositions.filter((position) => position<0 || glass[position] === Element.EMPTY);
+  const unavailablePositions = bssypositions.filter((position) => position<0 || glass[position] === Element.BUSY);
+  if (availablePositions.length === clnpositions.length) {
+    if (unavailablePositions.length !== bssypositions.length) {
+      return false;
+    }
+
+    let pathClean1 = isEmptyPath(w, h, glass);
+    let pathClean2 = isEmptyPath(w+1, h+2, glass);
+
+    if (!pathClean1 || !pathClean2) {
+      return false;
+    }
+    return true;
+  }
+
+  return false;
+}
+
+function strategyByL(x, y, glass) {
+  let minAvailableLeft = GLASS_WIDTH;
+  let minAvailableTop = GLASS_HEIGHT;
+    let command = COMMANDS.LEFT;
+    let rotate = false;
+    let isStrategy1 = false;
+    let isStrategy2 = false;
+    for(let h = 0; h < GLASS_HEIGHT; h++) {
+        for(let w = 0; w < GLASS_WIDTH-1; w++) {
+            if (isStrategyByL2(w, h, glass)) {
+              isStrategy2 = true;
+              minAvailableLeft = w;
+              rotate = true;
+              break;
+            }
+        }
+        if (minAvailableLeft < GLASS_WIDTH) {
+          minAvailableTop = h;
+          break;
+        }
+    }
+    if (!isStrategy2) {
+      for(let h = 0; h < minAvailableTop; h++) {
+          for(let w = 1; w < GLASS_WIDTH; w++) {
+            if (isStrategyByL1(w, h, glass)) {
+              isStrategy1 = true;
+              minAvailableLeft = w-1;
+              break;
+            }
+        }
+          if (minAvailableLeft < GLASS_WIDTH) {
+            minAvailableTop = h;
+            break;
+          }
+      }
+    }
+
+    let changeXBy = x - minAvailableLeft;
+
+    if (changeXBy < 0) {
+        command = COMMANDS.RIGHT;
+        changeXBy = -changeXBy;
+    }
+; ;
+    return `${command}=${changeXBy}${rotate ? `, ${COMMANDS.ROTATE_180}` : ''}, ${COMMANDS.DROP}`;
+}
+
+function isStrategyByL1(w, h, glass) {
+  const positions = [
+    (h)*GLASS_WIDTH + (w),
+    (h+1)*GLASS_WIDTH + (w),
+    (h+2)*GLASS_WIDTH + (w),
+    (h)*GLASS_WIDTH + (w-1),
+    (h+1)*GLASS_WIDTH + (w-1),
+    (h+2)*GLASS_WIDTH + (w-1),
+  ];
+  const availablePositions = positions.filter((position) => glass[position] === Element.EMPTY);
+  if (availablePositions.length === positions.length) {
+    let pathClean1 = isEmptyPath(w, h, glass);
+    let pathClean2 = isEmptyPath(w-1, h, glass);
+
+    if (!pathClean1 || !pathClean2) {
+      return false;
+    }
+    return true;
+  }
+
+  return false;
+}
+
+function isStrategyByL2(w, h, glass) {
+  const clnpositions = [
+    (h+2)*GLASS_WIDTH + (w-1),
+    (h)*GLASS_WIDTH + (w),
+    (h+1)*GLASS_WIDTH + (w),
+    (h+2)*GLASS_WIDTH + (w),
+  ];
+  const bssypositions = [
+    (h)*GLASS_WIDTH + (w-1),
+    (h-1)*GLASS_WIDTH + (w),
+    (h+1)*GLASS_WIDTH + (w-1),
+  ]
+  const availablePositions = clnpositions.filter((position) => position < 0 || glass[position] === Element.EMPTY);
+  const unavailablePositions = bssypositions.filter((position) => position < 0 || glass[position] === Element.BUSY);
+  if (availablePositions.length === clnpositions.length) {
+    if (unavailablePositions.length !== bssypositions.length) {
+      return false;
+    }
+
+    let pathClean1 = isEmptyPath(w, h, glass);
+    let pathClean2 = isEmptyPath(w-1, h+2, glass);
+
+    if (!pathClean1 || !pathClean2) {
+      return false;
+    }
+    return true;
+  }
+
+  return false;
 }
 
 function strategyByI(x, y, glass) {
@@ -229,6 +438,248 @@ function isEmptyPath(x, y, glass) {
         }
     }
     return pathClean;
+}
+
+function strategyByS(x, y, glass) {
+  let minAvailableLeft = GLASS_WIDTH;
+  let minAvailableTop = GLASS_HEIGHT;
+    let command = COMMANDS.LEFT;
+    let rotate = false;
+    let isStrategy2 = false;
+    let isStrategy1 = false;
+    for(let h = 0; h < GLASS_HEIGHT; h++) {
+        for(let w = 0; w < GLASS_WIDTH-1; w++) {
+            if (isStrategyByS2(w, h, glass)) {
+              isStrategy2 = true;
+              minAvailableLeft = w;
+              rotate = true;
+              break;
+            }
+        }
+        if (minAvailableLeft < GLASS_WIDTH) {
+          minAvailableTop = h;
+          break;
+        }
+    }
+    if (!isStrategy2) {
+      for(let h = 0; h < minAvailableTop; h++) {
+          for(let w = 1; w < GLASS_WIDTH; w++) {
+            if (isStrategyByS1(w, h, glass)) {
+              isStrategy1 = true;
+              minAvailableLeft = w;
+              break;
+            }
+        }
+          if (minAvailableLeft < GLASS_WIDTH) {
+            break;
+          }
+      }
+    }
+
+    if (!isStrategy1 && !isStrategy2) {
+      rotate = true;
+    }
+
+    let changeXBy = x - minAvailableLeft;
+
+    if (changeXBy < 0) {
+        command = COMMANDS.RIGHT;
+        changeXBy = -changeXBy;
+    }
+; ;
+    return `${command}=${changeXBy}${rotate ? `, ${COMMANDS.ROTATE_90}` : ''}, ${COMMANDS.DROP}`;
+}
+
+function isStrategyByS1(w, h, glass) {
+  if (w===0 || w===GLASS_WIDTH) {
+    return false;
+  }
+
+  const positions = [
+    (h)*GLASS_WIDTH + (w-1),
+    (h)*GLASS_WIDTH + (w),
+    (h+1)*GLASS_WIDTH + (w),
+    (h+1)*GLASS_WIDTH + (w+1),
+  ];
+  const bssypositions = [
+    (h-1)*GLASS_WIDTH + (w-1),
+    (h-1)*GLASS_WIDTH + (w),
+    (h)*GLASS_WIDTH + (w+1),
+  ];
+
+  const availablePositions = positions.filter((position) => glass[position] === Element.EMPTY);
+  const unavailablePositions = bssypositions.filter((position) => position<0 || glass[position] === Element.BUSY);
+  if (availablePositions.length === positions.length) {
+    if (unavailablePositions.length !== bssypositions.length) {
+        return false;
+    }
+
+    let pathClean1 = isEmptyPath(w, h, glass);
+    let pathClean2 = isEmptyPath(w-1, h, glass);
+    if (!pathClean1 || !pathClean2) {
+      return false;
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
+function isStrategyByS2(w, h, glass) {
+  if (w===GLASS_WIDTH) {
+    return false;
+  }
+
+  const clnpositions = [
+    (h)*GLASS_WIDTH + (w+1),
+    (h+1)*GLASS_WIDTH + (w+1),
+    (h+1)*GLASS_WIDTH + (w),
+    (h+2)*GLASS_WIDTH + (w),
+  ];
+  const bssypositions = [
+    (h)*GLASS_WIDTH + (w),
+    (h-1)*GLASS_WIDTH + (w+1),
+  ]
+  const availablePositions = clnpositions.filter((position) => position < 0 || glass[position] === Element.EMPTY);
+  const unavailablePositions = bssypositions.filter((position) => position < 0 || glass[position] === Element.BUSY);
+  if (availablePositions.length === clnpositions.length) {
+    if (unavailablePositions.length !== bssypositions.length) {
+      return false;
+    }
+
+    let pathClean1 = isEmptyPath(w, h, glass);
+    let pathClean2 = isEmptyPath(w+1, h+1, glass);
+
+    if (!pathClean1 || !pathClean2) {
+      return false;
+    }
+    return true;
+  }
+
+  return false;
+}
+
+function strategyByZ(x, y, glass) {
+  let minAvailableLeft = GLASS_WIDTH;
+  let minAvailableTop = GLASS_HEIGHT;
+    let command = COMMANDS.LEFT;
+    let rotate = false;
+    let isStrategy2 = false;
+    let isStrategy1 = false;
+    for(let h = 0; h < GLASS_HEIGHT; h++) {
+        for(let w = 0; w < GLASS_WIDTH-1; w++) {
+            if (isStrategyByZ2(w, h, glass)) {
+              isStrategy2 = true;
+              minAvailableLeft = w - 1;
+              rotate = true;
+              break;
+            }
+        }
+        if (minAvailableLeft < GLASS_WIDTH) {
+          minAvailableTop = h;
+          break;
+        }
+    }
+    if (!isStrategy2) {
+      for(let h = 0; h < minAvailableTop; h++) {
+          for(let w = 1; w < GLASS_WIDTH; w++) {
+            if (isStrategyByZ1(w, h, glass)) {
+              isStrategy1 = true;
+              minAvailableLeft = w -1;
+              break;
+            }
+        }
+          if (minAvailableLeft < GLASS_WIDTH) {
+            break;
+          }
+      }
+    }
+
+    if (!isStrategy1 && !isStrategy2) {
+      rotate = true;
+      minAvailableLeft = 1;
+    }
+
+    let changeXBy = x - minAvailableLeft;
+
+    if (changeXBy < 0) {
+        command = COMMANDS.RIGHT;
+        changeXBy = -changeXBy;
+    }
+; ;
+    return `${command}=${changeXBy}${rotate ? `, ${COMMANDS.ROTATE_90}` : ''}, ${COMMANDS.DROP}`;
+}
+
+function isStrategyByZ1(w, h, glass) {
+  if (w===0 || w===GLASS_WIDTH) {
+    return false;
+  }
+
+  const positions = [
+    (h)*GLASS_WIDTH + (w+1),
+    (h)*GLASS_WIDTH + (w),
+    (h+1)*GLASS_WIDTH + (w),
+    (h+1)*GLASS_WIDTH + (w-1),
+  ];
+  const bssypositions = [
+    (h-1)*GLASS_WIDTH + (w+1),
+    (h-1)*GLASS_WIDTH + (w),
+    (h)*GLASS_WIDTH + (w-1),
+  ];
+
+  const availablePositions = positions.filter((position) => glass[position] === Element.EMPTY);
+  const unavailablePositions = bssypositions.filter((position) => position<0 || glass[position] === Element.BUSY);
+  if (availablePositions.length === positions.length) {
+    if (unavailablePositions.length !== bssypositions.length) {
+        return false;
+    }
+
+    let pathClean1 = isEmptyPath(w, h, glass);
+    let pathClean2 = isEmptyPath(w+1, h, glass);
+    let pathClean3 = isEmptyPath(w-1, h, glass);
+    if (!pathClean1 || !pathClean2 || !pathClean3) {
+      return false;
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
+function isStrategyByZ2(w, h, glass) {
+  if (w===0) {
+    return false;
+  }
+  
+  const clnpositions = [
+    (h)*GLASS_WIDTH + (w-1),
+    (h+1)*GLASS_WIDTH + (w-1),
+    (h+1)*GLASS_WIDTH + (w),
+    (h+2)*GLASS_WIDTH + (w),
+  ];
+  const bssypositions = [
+    (h)*GLASS_WIDTH + (w),
+    (h-1)*GLASS_WIDTH + (w-1),
+  ]
+  const availablePositions = clnpositions.filter((position) => position < 0 || glass[position] === Element.EMPTY);
+  const unavailablePositions = bssypositions.filter((position) => position < 0 || glass[position] === Element.BUSY);
+  if (availablePositions.length === clnpositions.length) {
+    if (unavailablePositions.length !== bssypositions.length) {
+      return false;
+    }
+
+    let pathClean1 = isEmptyPath(w, h, glass);
+    let pathClean2 = isEmptyPath(w-1, h+1, glass);
+
+    if (!pathClean1 || !pathClean2) {
+      return false;
+    }
+    return true;
+  }
+
+  return false;
 }
 
 module.exports = answer;
