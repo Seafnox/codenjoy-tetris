@@ -12,31 +12,75 @@
  */
 
 let Element = {
-  // из этих символов состоит строка glass
-  EMPTY: ' ', // так выглядит свободное место в стакане
-  BUSY: '*', // а тут уже занято
-  OWN: '0',
+    // из этих символов состоит строка glass
+    EMPTY: ' ', // так выглядит свободное место в стакане
+    BUSY: '*', // а тут уже занято
+    OWN: '0',
 };
 
-let FIGURES = {
-  O: "O",
-  I: "I",
-  L: "L",
-  J: "J",
-  S: "S",
-  Z: "Z",
-  T: "T",
+const FIGURES = {
+    O: 'O',
+    I: 'I',
+    L: 'L',
+    J: 'J',
+    S: 'S',
+    Z: 'Z',
+    T: 'T',
 };
 
-let COMMANDS = {
-  LEFT: "left",
-  RIGHT: "right",
-  DROP: "drop",
-  DO_NOT_ROTATE: "rotate=0",
-  ROTATE_90: "rotate=1",
-  ROTATE_180: "rotate=2",
-  ROTATE_270: "rotate=3",
+const PATTERNS = {
+    [FIGURES.O] : [
+        ['*','*'],
+        ['*','*'],
+    ],
+    [FIGURES.I]: [
+        ['*'],
+        ['*'],
+        ['*'],
+        ['*'],
+    ],
+    [FIGURES.J]: [
+        [' ','*'],
+        [' ','*'],
+        ['*','*'],
+    ],
+    [FIGURES.L]: [
+        ['*',' '],
+        ['*',' '],
+        ['*','*'],
+    ],
+    [FIGURES.S]: [
+        [' ','*','*'],
+        ['*','*',' '],
+    ],
+    [FIGURES.Z]: [
+        ['*','*',' '],
+        [' ','*','*'],
+    ],
+    [FIGURES.T]: [
+        ['*','*','*'],
+        [' ','*',' '],
+    ],
 };
+
+const COMMANDS = {
+    LEFT: 'left',
+    RIGHT: 'right',
+    DROP: 'drop',
+    DO_NOT_ROTATE: 'rotate=0',
+    ROTATE_90: 'rotate=1',
+    ROTATE_180: 'rotate=2',
+    ROTATE_270: 'rotate=3',
+};
+
+const ROTATIONS = {
+    DO_NOT_ROTATE: 0,
+    ROTATE_90: 1,
+    ROTATE_180: 2,
+    ROTATE_270: 3,
+};
+
+const makeDrop = true;
 
 const GLASS_HEIGHT = 20;
 const GLASS_WIDTH = 10;
@@ -45,394 +89,825 @@ const GLASS_WIDTH = 10;
 let answer = (figure, x, y, glass, next) => {
     console.log('MESSAGE: ' + JSON.stringify({figure, x, y, next}));
 
-    const newGlass = updateGlassByFigure(figure, +x, +y, glass);
-
+    // const newGlass = updateGlassByFigure(figure, +x, +y, glass);
+    //
     // console.log('GLASS:\n' + prepareGlass(newGlass));
 
     // add "drop" to response when you need to drop a figure
-  // for details please check http://codenjoy.com/portal/?p=170#commands
-  return strategyByFigure(figure, x, y, glass);
+    // for details please check http://codenjoy.com/portal/?p=170#commands
+    const strategyData = strategyByFigure(figure, x, y, glass);
+
+    let changeXBy = x - strategyData.offset;
+    let command = COMMANDS.LEFT;
+
+    if (changeXBy < 0) {
+        command = COMMANDS.RIGHT;
+        changeXBy = -changeXBy;
+    }
+
+    if (y < GLASS_HEIGHT - 1) {
+        strategyData.rotate = null;
+    }
+
+    const strategyCommands = [
+        strategyData.rotate ? `rotate=${strategyData.rotate}` : null,
+        `${command}=${changeXBy}`,
+        makeDrop && !strategyData.doNotDrop || y < 15 ? COMMANDS.DROP : null,
+    ];
+
+    return strategyCommands.filter(command => !!command).join(', ');
 };
 
 function prepareGlass(glass) {
-  let result = [];
-  for(let i = 0; i < GLASS_HEIGHT; i++) {
-    result = [
-        glass.slice(i*GLASS_WIDTH, (i+1)*GLASS_WIDTH),
-        ...result,
-      ];
-  }
+    let result = [];
+    for (let i = 0; i < GLASS_HEIGHT; i++) {
+        result = [
+            glass.slice(i * GLASS_WIDTH, (i + 1) * GLASS_WIDTH),
+            ...result,
+        ];
+    }
 
-  return result.join('|\n') + '|';
+    return result.join('|\n') + '|';
 }
 
-function updateGlassByFigure(figure, x ,y, glass) {
-  const figureStrategy = {
-    [FIGURES.I]: updateGlassByI,
-    [FIGURES.O]: updateGlassByO,
-    [FIGURES.J]: updateGlassByJ,
-    [FIGURES.L]: updateGlassByL,
-    [FIGURES.S]: updateGlassByS,
-    [FIGURES.Z]: updateGlassByZ,
-  };
-  if (!figureStrategy[figure]) {
-    throw new Error('No Figure ' + figure);
-  }
-  return figureStrategy[figure](x, y, glass);
+function updateGlassByFigure(figure, x, y, glass) {
+    const figureStrategy = {
+        [FIGURES.I]: updateGlassByI,
+        [FIGURES.O]: updateGlassByO,
+        [FIGURES.J]: updateGlassByJ,
+        [FIGURES.L]: updateGlassByL,
+        [FIGURES.S]: updateGlassByS,
+        [FIGURES.Z]: updateGlassByZ,
+        [FIGURES.T]: updateGlassByT,
+    };
+    if (!figureStrategy[figure]) {
+        throw new Error('No Figure ' + figure);
+    }
+    return figureStrategy[figure](x, y, glass);
 }
 
 function updateGlassByO(x, y, glass) {
     let newGlass = glass.slice(0);
-    newGlass = `${newGlass.substring(0, (y-1)*GLASS_WIDTH + x)}${Element.OWN}${Element.OWN}${newGlass.substring((y-1)*GLASS_WIDTH + x + 2)}`;
-    newGlass = `${newGlass.substring(0, (y)*GLASS_WIDTH + x)}${Element.OWN}${Element.OWN}${newGlass.substring((y)*GLASS_WIDTH + x + 2)}`;
+    newGlass = `${newGlass.substring(0, (y - 1) * GLASS_WIDTH + x)}${Element.OWN}${Element.OWN}${newGlass.substring((y - 1) * GLASS_WIDTH + x + 2)}`;
+    newGlass = `${newGlass.substring(0, (y) * GLASS_WIDTH + x)}${Element.OWN}${Element.OWN}${newGlass.substring((y) * GLASS_WIDTH + x + 2)}`;
     return newGlass;
 }
 
 function updateGlassByI(x, y, glass) {
     let newGlass = glass.slice(0);
-    newGlass = `${newGlass.substring(0, (y-2)*GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y-2)*GLASS_WIDTH + x + 1)}`;
-    newGlass = `${newGlass.substring(0, (y-1)*GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y-1)*GLASS_WIDTH + x + 1)}`;
-    newGlass = `${newGlass.substring(0, (y)*GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y)*GLASS_WIDTH + x + 1)}`;
-    newGlass = `${newGlass.substring(0, (y+1)*GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y+1)*GLASS_WIDTH + x + 1)}`;
+    newGlass = `${newGlass.substring(0, (y - 2) * GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y - 2) * GLASS_WIDTH + x + 1)}`;
+    newGlass = `${newGlass.substring(0, (y - 1) * GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y - 1) * GLASS_WIDTH + x + 1)}`;
+    newGlass = `${newGlass.substring(0, (y) * GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y) * GLASS_WIDTH + x + 1)}`;
+    newGlass = `${newGlass.substring(0, (y + 1) * GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y + 1) * GLASS_WIDTH + x + 1)}`;
     return newGlass;
 }
 
 function updateGlassByJ(x, y, glass) {
     let newGlass = glass.slice(0);
-    newGlass = `${newGlass.substring(0, (y+1)*GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y+1)*GLASS_WIDTH + x + 1)}`;
-    newGlass = `${newGlass.substring(0, (y)*GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y)*GLASS_WIDTH + x + 1)}`;
-    newGlass = `${newGlass.substring(0, (y-1)*GLASS_WIDTH + x - 1)}${Element.OWN}${Element.OWN}${newGlass.substring((y-1)*GLASS_WIDTH + x + 1)}`;
+    newGlass = `${newGlass.substring(0, (y + 1) * GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y + 1) * GLASS_WIDTH + x + 1)}`;
+    newGlass = `${newGlass.substring(0, (y) * GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y) * GLASS_WIDTH + x + 1)}`;
+    newGlass = `${newGlass.substring(0, (y - 1) * GLASS_WIDTH + x - 1)}${Element.OWN}${Element.OWN}${newGlass.substring((y - 1) * GLASS_WIDTH + x + 1)}`;
     return newGlass;
 }
 
 function updateGlassByL(x, y, glass) {
-  let newGlass = glass.slice(0);
-  newGlass = `${newGlass.substring(0, (y+1)*GLASS_WIDTH + x-1)}${Element.OWN}${Element.OWN}${newGlass.substring((y+1)*GLASS_WIDTH + x + 1)}`;
-  newGlass = `${newGlass.substring(0, (y)*GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y)*GLASS_WIDTH + x + 1)}`;
-  newGlass = `${newGlass.substring(0, (y-1)*GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y-1)*GLASS_WIDTH + x + 1)}`;
-  return newGlass;
+    let newGlass = glass.slice(0);
+    newGlass = `${newGlass.substring(0, (y + 1) * GLASS_WIDTH + x - 1)}${Element.OWN}${Element.OWN}${newGlass.substring((y + 1) * GLASS_WIDTH + x + 1)}`;
+    newGlass = `${newGlass.substring(0, (y) * GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y) * GLASS_WIDTH + x + 1)}`;
+    newGlass = `${newGlass.substring(0, (y - 1) * GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y - 1) * GLASS_WIDTH + x + 1)}`;
+    return newGlass;
 }
 
 function updateGlassByS(x, y, glass) {
-  let newGlass = glass.slice(0);
-  newGlass = `${newGlass.substring(0, (y+1)*GLASS_WIDTH + x)}${Element.OWN}${Element.OWN}${newGlass.substring((y+1)*GLASS_WIDTH + x + 2)}`;
-  newGlass = `${newGlass.substring(0, (y)*GLASS_WIDTH + x-1)}${Element.OWN}${Element.OWN}${newGlass.substring((y)*GLASS_WIDTH + x + 1)}`;
-  return newGlass;
+    let newGlass = glass.slice(0);
+    newGlass = `${newGlass.substring(0, (y + 1) * GLASS_WIDTH + x)}${Element.OWN}${Element.OWN}${newGlass.substring((y + 1) * GLASS_WIDTH + x + 2)}`;
+    newGlass = `${newGlass.substring(0, (y) * GLASS_WIDTH + x - 1)}${Element.OWN}${Element.OWN}${newGlass.substring((y) * GLASS_WIDTH + x + 1)}`;
+    return newGlass;
 }
 
 function updateGlassByZ(x, y, glass) {
     let newGlass = glass.slice(0);
-    newGlass = `${newGlass.substring(0, (y+1)*GLASS_WIDTH + x-1)}${Element.OWN}${Element.OWN}${newGlass.substring((y+1)*GLASS_WIDTH + x + 1)}`;
-    newGlass = `${newGlass.substring(0, (y)*GLASS_WIDTH + x)}${Element.OWN}${Element.OWN}${newGlass.substring((y)*GLASS_WIDTH + x + 2)}`;
+    newGlass = `${newGlass.substring(0, (y + 1) * GLASS_WIDTH + x - 1)}${Element.OWN}${Element.OWN}${newGlass.substring((y + 1) * GLASS_WIDTH + x + 1)}`;
+    newGlass = `${newGlass.substring(0, (y) * GLASS_WIDTH + x)}${Element.OWN}${Element.OWN}${newGlass.substring((y) * GLASS_WIDTH + x + 2)}`;
+    return newGlass;
+}
+
+function updateGlassByT(x, y, glass) {
+    let newGlass = glass.slice(0);
+    newGlass = `${newGlass.substring(0, (y + 1) * GLASS_WIDTH + x - 1)}${Element.OWN}${Element.OWN}${Element.OWN}${newGlass.substring((y + 1) * GLASS_WIDTH + x + 2)}`;
+    newGlass = `${newGlass.substring(0, (y) * GLASS_WIDTH + x)}${Element.OWN}${newGlass.substring((y) * GLASS_WIDTH + x + 1)}`;
     return newGlass;
 }
 
 function strategyByFigure(figure, x, y, glass) {
-  const figureStrategy = {
-    [FIGURES.I]: strategyByI,
-    [FIGURES.O]: strategyByO,
-    [FIGURES.J]: strategyByJ,
-    [FIGURES.L]: strategyByL,
-    [FIGURES.S]: strategyByS,
-    [FIGURES.Z]: strategyByZ,
-  };
+    const figureStrategy = {
+        [FIGURES.I]: strategyByI,
+        [FIGURES.O]: strategyByO,
+        [FIGURES.J]: strategyByJ,
+        [FIGURES.L]: strategyByL,
+        [FIGURES.S]: strategyByS,
+        [FIGURES.Z]: strategyByZ,
+        [FIGURES.T]: strategyByT,
+    };
 
-  if (!figureStrategy[figure]) {
-    throw new Error('No strategy for ' + figure);
-  }
-
-  return figureStrategy[figure](x, y, glass);
-}
-
-function strategyByJ(x, y, glass) {
-  let minAvailableLeft = GLASS_WIDTH;
-  let minAvailableTop = GLASS_HEIGHT;
-    let command = COMMANDS.LEFT;
-    let rotate = false;
-    let isStrategy1 = false;
-    let isStrategy2 = false;
-    for(let h = 0; h < GLASS_HEIGHT; h++) {
-        for(let w = 0; w < GLASS_WIDTH; w++) {
-            if (isStrategyByJ2(w, h, glass)) {
-              isStrategy2 = true;
-              minAvailableLeft = w;
-              rotate = true;    
-              break;
-            }
-        }
-        if (minAvailableLeft < GLASS_WIDTH) {
-          minAvailableTop = h;
-          break;
-        }
-    }
-    if (!isStrategy2) {
-    for(let h = 0; h < minAvailableTop; h++) {
-        for(let w = 1; w < GLASS_WIDTH; w++) {
-          if (isStrategyByJ1(w, h, glass)) {
-            isStrategy1 = true;
-            minAvailableLeft = w;
-            break;
-          }
-      }
-      if (minAvailableLeft < GLASS_WIDTH) {
-        minAvailableTop = h;
-        break;
-      }
-    }
+    if (!figureStrategy[figure]) {
+        throw new Error('No strategy for ' + figure);
     }
 
-    let changeXBy = x - minAvailableLeft;
-
-    if (changeXBy < 0) {
-        command = COMMANDS.RIGHT;
-        changeXBy = -changeXBy;
-    }
-    
-    return `${command}=${changeXBy}${rotate ? `, ${COMMANDS.ROTATE_180}` : ''}, ${COMMANDS.DROP}`;
-}
-
-function isStrategyByJ1(w, h, glass) {
-  if (w === 0) {
-    return false;
-  }
-  const positions = [
-    (h)*GLASS_WIDTH + (w),
-    (h+1)*GLASS_WIDTH + (w),
-    (h+2)*GLASS_WIDTH + (w),
-    (h)*GLASS_WIDTH + (w-1),
-    (h+1)*GLASS_WIDTH + (w-1),
-    (h+2)*GLASS_WIDTH + (w-1),
-  ];
-  const availablePositions = positions.filter((position) => glass[position] === Element.EMPTY);
-  if (availablePositions.length === positions.length) {
-    let pathClean1 = isEmptyPath(w, h, glass);
-    let pathClean2 = isEmptyPath(w-1, h, glass);
-
-    if (!pathClean1 || !pathClean2) {
-      return false;
-    }
-    return true;
-  }
-
-  return false;
-}
-
-function isStrategyByJ2(w, h, glass) {
-  if (w === GLASS_WIDTH) {
-    return false;
-  }
-  const clnpositions = [
-    (h+2)*GLASS_WIDTH + (w+1),
-    (h)*GLASS_WIDTH + (w),
-    (h+1)*GLASS_WIDTH + (w),
-    (h+2)*GLASS_WIDTH + (w),
-  ];
-  const bssypositions = [
-    (h-1)*GLASS_WIDTH + (w),
-    (h)*GLASS_WIDTH + (w+1),
-    (h+1)*GLASS_WIDTH + (w+1),
-  ]
-  const availablePositions = clnpositions.filter((position) => position<0 || glass[position] === Element.EMPTY);
-  const unavailablePositions = bssypositions.filter((position) => position<0 || glass[position] === Element.BUSY);
-  if (availablePositions.length === clnpositions.length) {
-    if (unavailablePositions.length !== bssypositions.length) {
-      return false;
-    }
-
-    let pathClean1 = isEmptyPath(w, h, glass);
-    let pathClean2 = isEmptyPath(w+1, h+2, glass);
-
-    if (!pathClean1 || !pathClean2) {
-      return false;
-    }
-    return true;
-  }
-
-  return false;
-}
-
-function strategyByL(x, y, glass) {
-  let minAvailableLeft = GLASS_WIDTH;
-  let minAvailableTop = GLASS_HEIGHT;
-    let command = COMMANDS.LEFT;
-    let rotate = false;
-    let isStrategy1 = false;
-    let isStrategy2 = false;
-    for(let h = 0; h < GLASS_HEIGHT; h++) {
-        for(let w = 0; w < GLASS_WIDTH-1; w++) {
-            if (isStrategyByL2(w, h, glass)) {
-              isStrategy2 = true;
-              minAvailableLeft = w;
-              rotate = true;
-              break;
-            }
-        }
-        if (minAvailableLeft < GLASS_WIDTH) {
-          minAvailableTop = h;
-          break;
-        }
-    }
-    if (!isStrategy2) {
-      for(let h = 0; h < minAvailableTop; h++) {
-          for(let w = 1; w < GLASS_WIDTH; w++) {
-            if (isStrategyByL1(w, h, glass)) {
-              isStrategy1 = true;
-              minAvailableLeft = w-1;
-              break;
-            }
-        }
-          if (minAvailableLeft < GLASS_WIDTH) {
-            minAvailableTop = h;
-            break;
-          }
-      }
-    }
-
-    let changeXBy = x - minAvailableLeft;
-
-    if (changeXBy < 0) {
-        command = COMMANDS.RIGHT;
-        changeXBy = -changeXBy;
-    }
-; ;
-    return `${command}=${changeXBy}${rotate ? `, ${COMMANDS.ROTATE_180}` : ''}, ${COMMANDS.DROP}`;
-}
-
-function isStrategyByL1(w, h, glass) {
-  const positions = [
-    (h)*GLASS_WIDTH + (w),
-    (h+1)*GLASS_WIDTH + (w),
-    (h+2)*GLASS_WIDTH + (w),
-    (h)*GLASS_WIDTH + (w-1),
-    (h+1)*GLASS_WIDTH + (w-1),
-    (h+2)*GLASS_WIDTH + (w-1),
-  ];
-  const availablePositions = positions.filter((position) => glass[position] === Element.EMPTY);
-  if (availablePositions.length === positions.length) {
-    let pathClean1 = isEmptyPath(w, h, glass);
-    let pathClean2 = isEmptyPath(w-1, h, glass);
-
-    if (!pathClean1 || !pathClean2) {
-      return false;
-    }
-    return true;
-  }
-
-  return false;
-}
-
-function isStrategyByL2(w, h, glass) {
-  const clnpositions = [
-    (h+2)*GLASS_WIDTH + (w-1),
-    (h)*GLASS_WIDTH + (w),
-    (h+1)*GLASS_WIDTH + (w),
-    (h+2)*GLASS_WIDTH + (w),
-  ];
-  const bssypositions = [
-    (h)*GLASS_WIDTH + (w-1),
-    (h-1)*GLASS_WIDTH + (w),
-    (h+1)*GLASS_WIDTH + (w-1),
-  ]
-  const availablePositions = clnpositions.filter((position) => position < 0 || glass[position] === Element.EMPTY);
-  const unavailablePositions = bssypositions.filter((position) => position < 0 || glass[position] === Element.BUSY);
-  if (availablePositions.length === clnpositions.length) {
-    if (unavailablePositions.length !== bssypositions.length) {
-      return false;
-    }
-
-    let pathClean1 = isEmptyPath(w, h, glass);
-    let pathClean2 = isEmptyPath(w-1, h+2, glass);
-
-    if (!pathClean1 || !pathClean2) {
-      return false;
-    }
-    return true;
-  }
-
-  return false;
-}
-
-function strategyByI(x, y, glass) {
-    let minAvailableLeft = GLASS_WIDTH;
-    let command = COMMANDS.LEFT;
-    for(let h = 0; h < GLASS_HEIGHT; h++) {
-        for(let w = 0; w < GLASS_WIDTH; w++) {
-            const positions = [
-                (h)*GLASS_WIDTH + (w),
-                (h+1)*GLASS_WIDTH + (w),
-                (h+2)*GLASS_WIDTH + (w),
-                (h+3)*GLASS_WIDTH + (w),
-            ];
-            const availablePositions = positions.filter((position) => glass[position] === Element.EMPTY);
-            if (availablePositions.length === positions.length) {
-                let pathClean = isEmptyPath(w, h, glass);
-
-                if (!pathClean) {
-                  continue;
-                }
-
-                minAvailableLeft = w;
-                break;
-            }
-        }
-        if (minAvailableLeft < GLASS_WIDTH) {
-            break;
-        }
-    }
-
-    let changeXBy = x - minAvailableLeft;
-
-    if (changeXBy < 0) {
-        command = COMMANDS.RIGHT;
-        changeXBy = -changeXBy;
-    }
-
-    return `${command}=${changeXBy}, ${COMMANDS.DROP}`;
+    return figureStrategy[figure](x, y, glass);
 }
 
 function strategyByO(x, y, glass) {
-  let minAvailableLeft = GLASS_WIDTH;
-  let command = COMMANDS.LEFT;
-  for(let h = 0; h < GLASS_HEIGHT; h++) {
-    for(let w = 0; w < GLASS_WIDTH; w++) {
-      const positions = [
-          (h)*GLASS_WIDTH + (w),
-          (h+1)*GLASS_WIDTH + (w),
-          (h)*GLASS_WIDTH + (w+1),
-          (h+1)*GLASS_WIDTH + (w+1),
-        ];
-      const availablePositions = positions.filter((position) => glass[position] === Element.EMPTY);
-      if (availablePositions.length === positions.length) {
-          let pathClean1 = isEmptyPath(w, h, glass);
-          let pathClean2 = isEmptyPath(w+1, h, glass);
+    const nearest1 = findNearOffsetInGlass(glass, strategyByO1);
+    const nearest2 = findNearOffsetInGlass(glass, strategyByO2);
 
-          if (!pathClean1 || !pathClean2) {
-              continue;
-          }
-
-          minAvailableLeft = w;
-        break;
-      }
+    if (nearest1) {
+        return {
+            offset: nearest1.x,
+        }
     }
-    if (minAvailableLeft < GLASS_WIDTH - 1) {
-      break;
+
+    if (nearest2) {
+        return {
+            offset: nearest2.x,
+        }
     }
-  }
 
-    let changeXBy = x - minAvailableLeft;
+    return {
+        offset: 0,
+    }
+}
 
-  if (changeXBy < 0) {
-    command = COMMANDS.RIGHT;
-    changeXBy = -changeXBy;
-  }
+function strategyByO1(x, y, glass) {
+    if (x === GLASS_WIDTH) {
+        return false;
+    }
 
-  return `${command}=${changeXBy}, ${COMMANDS.DROP}`;
+    const clnPos = [
+        (y) * GLASS_WIDTH + (x),
+        (y) * GLASS_WIDTH + (x + 1),
+    ];
+
+    const bsyPos = [
+        (y-1) * GLASS_WIDTH + (x),
+        (y-1) * GLASS_WIDTH + (x + 1),
+    ];
+
+    const badClnPos = clnPos.some((position) => position >= 0 && glass[position] !== Element.EMPTY);
+    const badBsyPos = bsyPos.some((position) => position >= 0 && glass[position] !== Element.BUSY);
+
+    if (badClnPos || badBsyPos) {
+        return false;
+    }
+
+    let pathClean1 = isEmptyPath(x, y, glass);
+    let pathClean2 = isEmptyPath(x + 1, y, glass);
+
+    return pathClean1 && pathClean2;
+}
+
+function strategyByO2(x, y, glass) {
+    if (x === GLASS_WIDTH) {
+        return false;
+    }
+
+    const clnPos = [
+        (y) * GLASS_WIDTH + (x),
+        (y) * GLASS_WIDTH + (x + 1),
+    ];
+
+    const badClnPos = clnPos.some((position) => position >= 0 && glass[position] !== Element.EMPTY);
+
+    if (badClnPos) {
+        return false;
+    }
+
+    let pathClean1 = isEmptyPath(x, y, glass);
+    let pathClean2 = isEmptyPath(x + 1, y, glass);
+
+    return pathClean1 && pathClean2;
+}
+
+function strategyByI(x, y, glass) {
+    const nearest1 = findNearOffsetInGlass(glass, strategyByI1);
+    const nearest2 = findNearOffsetInGlass(glass, strategyByI2);
+    const nearest3 = findNearOffsetInGlass(glass, strategyByI3);
+
+    if (nearest2) {
+        return {
+            offset: nearest2.x,
+        }
+    }
+
+    if (nearest1) {
+        return {
+            offset: nearest1.x,
+        }
+    }
+
+    if (nearest3) {
+        return {
+            offset: nearest3.x,
+        }
+    }
+
+    return {
+        offset: 0,
+    }
+}
+
+function strategyByI1(x,y,glass) {
+    if (x === 0) {
+        return false;
+    }
+
+    const clnPos = [
+        (y) * GLASS_WIDTH + (x),
+    ];
+
+    const bsyPos = [
+        (y) * GLASS_WIDTH + (x-1),
+        (y+1) * GLASS_WIDTH + (x-1),
+    ];
+
+    const badClnPos = clnPos.some((position) => position >= 0 && glass[position] !== Element.EMPTY);
+    const badBsyPos = bsyPos.some((position) => position >= 0 && glass[position] !== Element.BUSY);
+
+    if (badClnPos || badBsyPos) {
+        return false;
+    }
+
+    let pathClean = isEmptyPath(x, y, glass);
+
+    return pathClean;
+}
+
+function strategyByI2(x,y,glass) {
+    if (x === GLASS_WIDTH) {
+        return false;
+    }
+
+    const clnPos = [
+        (y) * GLASS_WIDTH + (x),
+    ];
+
+    const bsyPos = [
+        (y) * GLASS_WIDTH + (x+1),
+        (y+1) * GLASS_WIDTH + (x+1),
+    ];
+
+    const badClnPos = clnPos.some((position) => position >= 0 && glass[position] !== Element.EMPTY);
+    const badBsyPos = bsyPos.some((position) => position >= 0 && glass[position] !== Element.BUSY);
+
+    if (badClnPos || badBsyPos) {
+        return false;
+    }
+
+    let pathClean = isEmptyPath(x, y, glass);
+
+    return pathClean;
+}
+
+function strategyByI3(x,y,glass) {
+    const clnPos = [
+        (y) * GLASS_WIDTH + (x),
+    ];
+
+    const badClnPos = clnPos.some((position) => position >= 0 && glass[position] !== Element.EMPTY);
+
+    if (badClnPos) {
+        return false;
+    }
+
+    let pathClean = isEmptyPath(x, y, glass);
+
+    return pathClean;
+}
+
+function strategyByJ(x, y, glass) {
+    const nearestBy1 = findNearOffsetInGlass(glass, isStrategyByJ1);
+    const nearestBy2 = findNearOffsetInGlass(glass, isStrategyByJ2);
+    const nearestBy3 = findNearOffsetInGlass(glass, isStrategyByJ3);
+
+    if (nearestBy2) {
+        return {
+            offset: nearestBy2.x,
+            rotate: ROTATIONS.ROTATE_180,
+        };
+    }
+
+    if (nearestBy3) {
+        return {
+            offset: nearestBy3.x,
+            rotate: ROTATIONS.ROTATE_270,
+        };
+    }
+
+    if (nearestBy1) {
+        return {
+            offset: nearestBy1.x,
+        };
+    }
+
+    return {
+        offset: GLASS_WIDTH,
+    };
+}
+
+function isStrategyByJ1(w, h, glass) {
+    if (w === 0) {
+        return false;
+    }
+
+    const clnPos = [
+        (h) * GLASS_WIDTH + (w),
+        (h) * GLASS_WIDTH + (w - 1),
+    ];
+
+    const badClnPos = clnPos.some((position) => position >= 0 && glass[position] !== Element.EMPTY);
+
+    if (badClnPos) {
+        return false;
+    }
+
+    let pathClean1 = isEmptyPath(w, h, glass);
+    let pathClean2 = isEmptyPath(w - 1, h, glass);
+
+    return pathClean1 && pathClean2;
+}
+
+function isStrategyByJ2(w, h, glass) {
+    if (w === GLASS_WIDTH) {
+        return false;
+    }
+
+    const clnPos = [
+        (h + 2) * GLASS_WIDTH + (w + 1),
+        (h) * GLASS_WIDTH + (w),
+    ];
+    const bsyPos = [
+        (h - 1) * GLASS_WIDTH + (w),
+        (h) * GLASS_WIDTH + (w + 1),
+        (h + 1) * GLASS_WIDTH + (w + 1),
+    ];
+
+    const badClnPos = clnPos.some((position) => position >= 0 && glass[position] !== Element.EMPTY);
+    const badBsyPos = bsyPos.some((position) => position >= 0 && glass[position] !== Element.BUSY);
+    if (badClnPos || badBsyPos) {
+        return false;
+    }
+
+    let pathClean1 = isEmptyPath(w, h, glass);
+    let pathClean2 = isEmptyPath(w + 1, h + 2, glass);
+
+    return pathClean1 && pathClean2;
+}
+
+function isStrategyByJ3(x, y, glass) {
+    if (x === 0 || x === GLASS_WIDTH) {
+        return false;
+    }
+
+    const clnPos = [
+        (y)*GLASS_WIDTH + x+1,
+        (y+1)*GLASS_WIDTH + x,
+        (y+1)*GLASS_WIDTH + x-1,
+    ];
+
+    const bsyPos = [
+        (y)*GLASS_WIDTH + x,
+        (y)*GLASS_WIDTH + x-1,
+        (y-1)*GLASS_WIDTH + x+1,
+    ];
+
+    const badClnPos = clnPos.some((position) => position >= 0 && glass[position] !== Element.EMPTY);
+    const badBsyPos = bsyPos.some((position) => position >= 0 && glass[position] !== Element.BUSY);
+    if (badClnPos || badBsyPos) {
+        return false;
+    }
+
+    let pathClean1 = isEmptyPath(x, y+1, glass);
+    let pathClean2 = isEmptyPath(x+1, y, glass);
+    let pathClean3 = isEmptyPath(x-1, y+1, glass);
+
+    return pathClean1 && pathClean2 && pathClean3;
+}
+
+function strategyByL(x, y, glass) {
+    const nearestBy1 = findNearOffsetInGlass(glass, isStrategyByL1);
+    const nearestBy2 = findNearOffsetInGlass(glass, isStrategyByL2);
+    const nearestBy3 = findNearOffsetInGlass(glass, isStrategyByL3);
+
+    if (nearestBy2) {
+        return {
+            offset: nearestBy2.x,
+            rotate: ROTATIONS.ROTATE_180,
+        }
+    }
+
+    if (nearestBy3) {
+        return {
+            offset: nearestBy3.x,
+            rotate: ROTATIONS.ROTATE_90,
+        }
+    }
+
+    if (nearestBy1) {
+        return {
+            offset: nearestBy1.x,
+        }
+    }
+
+    return {
+        offset: 0,
+    };
+}
+
+function isStrategyByL1(w, h, glass) {
+    if (w === GLASS_WIDTH) {
+        return false;
+    }
+
+    const clnPos = [
+        (h) * GLASS_WIDTH + (w),
+        (h) * GLASS_WIDTH + (w + 1),
+    ];
+
+    const badClnPos = clnPos.some((position) => position >= 0 && glass[position] !== Element.EMPTY);
+    if (badClnPos) {
+        return false;
+    }
+
+    let pathClean1 = isEmptyPath(w, h, glass);
+    let pathClean2 = isEmptyPath(w + 1, h, glass);
+
+    return pathClean1 && pathClean2;
+}
+
+function isStrategyByL2(w, h, glass) {
+    if (w === 0) {
+        return false;
+    }
+
+    const clnPos = [
+        (h + 2) * GLASS_WIDTH + (w - 1),
+        (h) * GLASS_WIDTH + (w),
+    ];
+    const bsyPos = [
+        (h) * GLASS_WIDTH + (w - 1),
+        (h - 1) * GLASS_WIDTH + (w),
+        (h + 1) * GLASS_WIDTH + (w - 1),
+    ];
+
+    const badClnPos = clnPos.some((position) => position >= 0 && glass[position] !== Element.EMPTY);
+    const badBsyPos = bsyPos.some((position) => position >= 0 && glass[position] !== Element.BUSY);
+    if (badClnPos || badBsyPos) {
+        return false;
+    }
+
+    let pathClean1 = isEmptyPath(w, h, glass);
+    let pathClean2 = isEmptyPath(w - 1, h + 2, glass);
+
+    return pathClean1 && pathClean2;
+}
+
+function isStrategyByL3(x, y, glass) {
+    if (x === 0 || x === GLASS_WIDTH) {
+        return false;
+    }
+
+    const clnPos = [
+        (y)*GLASS_WIDTH + x-1,
+        (y+1)*GLASS_WIDTH + x,
+        (y+1)*GLASS_WIDTH + x+1,
+    ];
+
+    const bsyPos = [
+        (y)*GLASS_WIDTH + x,
+        (y)*GLASS_WIDTH + x+1,
+        (y-1)*GLASS_WIDTH + x-1,
+    ];
+
+    const badClnPos = clnPos.some((position) => position >= 0 && glass[position] !== Element.EMPTY);
+    const badBsyPos = bsyPos.some((position) => position >= 0 && glass[position] !== Element.BUSY);
+    if (badClnPos || badBsyPos) {
+        return false;
+    }
+
+    let pathClean1 = isEmptyPath(x, y+1, glass);
+    let pathClean2 = isEmptyPath(x-1, y, glass);
+    let pathClean3 = isEmptyPath(x+1, y+1, glass);
+
+    return pathClean1 && pathClean2 && pathClean3;
+}
+
+function strategyByS(x, y, glass) {
+    const nearestBy1 = findNearOffsetInGlass(glass, isStrategyByS1);
+    const nearestBy2 = findNearOffsetInGlass(glass, isStrategyByS2);
+    console.log('STRATEGIES', JSON.stringify({S1: nearestBy1, S2: nearestBy2}));
+
+    if (nearestBy2) {
+        return {
+            offset: nearestBy2.x,
+            rotate: ROTATIONS.ROTATE_90,
+        };
+    }
+
+    if (nearestBy1) {
+        return {
+            offset: nearestBy1.x,
+        }
+    }
+
+    return {
+        offset: GLASS_WIDTH,
+        rotate: ROTATIONS.ROTATE_90,
+    };
+}
+
+function isStrategyByS1(w, h, glass) {
+    if (w === 0 || w === GLASS_WIDTH) {
+        return false;
+    }
+
+    const clnPos = [
+        (h) * GLASS_WIDTH + (w - 1),
+        (h) * GLASS_WIDTH + (w),
+        (h + 1) * GLASS_WIDTH + (w),
+        (h + 1) * GLASS_WIDTH + (w + 1),
+    ];
+    const bsyPos = [
+        (h - 1) * GLASS_WIDTH + (w - 1),
+        (h - 1) * GLASS_WIDTH + (w),
+        (h) * GLASS_WIDTH + (w + 1),
+    ];
+
+    const badClnPos = clnPos.some((position) => position >= 0 && glass[position] !== Element.EMPTY);
+    const badBsyPos = bsyPos.some((position) => position >= 0 && glass[position] !== Element.BUSY);
+    if (badClnPos || badBsyPos) {
+        return false;
+    }
+
+    let pathClean1 = isEmptyPath(w, h, glass);
+    let pathClean2 = isEmptyPath(w - 1, h, glass);
+    return pathClean1 && pathClean2;
+}
+
+function isStrategyByS2(w, h, glass) {
+    if (w === GLASS_WIDTH) {
+        return false;
+    }
+
+    const clnPos = [
+        (h) * GLASS_WIDTH + (w+1),
+        (h + 1) * GLASS_WIDTH + (w+1),
+        (h + 1) * GLASS_WIDTH + (w),
+        (h + 2) * GLASS_WIDTH + (w),
+    ];
+    const bsyPos = [
+        (h) * GLASS_WIDTH + (w),
+        (h-1) * GLASS_WIDTH + (w+1),
+    ];
+    const badClnPos = clnPos.some((position) => position >= 0 && glass[position] !== Element.EMPTY);
+    const badBsyPos = bsyPos.some((position) => position >= 0 && glass[position] !== Element.BUSY);
+    if (badClnPos || badBsyPos) {
+        return false;
+    }
+
+    let pathClean1 = isEmptyPath(w+1, h, glass);
+    let pathClean2 = isEmptyPath(w, h + 1, glass);
+
+    return pathClean1 && pathClean2;
+}
+
+function strategyByZ(x, y, glass) {
+    const nearestBy1 = findNearOffsetInGlass(glass, isStrategyByZ1);
+    const nearestBy2 = findNearOffsetInGlass(glass, isStrategyByZ2);
+
+    if (nearestBy2) {
+        return {
+            offset: nearestBy2.x,
+            rotate: ROTATIONS.ROTATE_90,
+        };
+    }
+
+    if (nearestBy1) {
+        return {
+            offset: nearestBy1.x,
+        }
+    }
+
+    return {
+        offset: 0,
+        rotate: ROTATIONS.ROTATE_90,
+    };
+
+}
+
+function isStrategyByZ1(w, h, glass) {
+    if (w === 0 || w === GLASS_WIDTH) {
+        return false;
+    }
+
+    const clnPos = [
+        (h) * GLASS_WIDTH + (w + 1),
+        (h) * GLASS_WIDTH + (w),
+        (h + 1) * GLASS_WIDTH + (w - 1),
+    ];
+    const bsyPos = [
+        (h - 1) * GLASS_WIDTH + (w + 1),
+        (h - 1) * GLASS_WIDTH + (w),
+        (h) * GLASS_WIDTH + (w - 1),
+    ];
+
+    const badClnPos = clnPos.some((position) => position >= 0 && glass[position] !== Element.EMPTY);
+    const badBsyPos = bsyPos.some((position) => position >= 0 && glass[position] !== Element.BUSY);
+    if (badClnPos || badBsyPos) {
+        return false;
+    }
+
+    let pathClean1 = isEmptyPath(w, h, glass);
+    let pathClean2 = isEmptyPath(w + 1, h, glass);
+    let pathClean3 = isEmptyPath(w - 1, h+1, glass);
+    return pathClean1 && pathClean2 && pathClean3;
+}
+
+function isStrategyByZ2(w, h, glass) {
+    if (w === 0) {
+        return false;
+    }
+
+    const clnPos = [
+        (h) * GLASS_WIDTH + (w),
+        (h + 1) * GLASS_WIDTH + (w),
+        (h + 1) * GLASS_WIDTH + (w+1),
+        (h + 2) * GLASS_WIDTH + (w+1),
+    ];
+    const bsyPos = [
+        (h) * GLASS_WIDTH + (w+1),
+        (h - 1) * GLASS_WIDTH + (w),
+    ];
+    const badClnPos = clnPos.some((position) => position >= 0 && glass[position] !== Element.EMPTY);
+    const badBsyPos = bsyPos.some((position) => position >= 0 && glass[position] !== Element.BUSY);
+    if (badClnPos || badBsyPos) {
+        return false;
+    }
+
+    let pathClean1 = isEmptyPath(w, h, glass);
+    let pathClean2 = isEmptyPath(w+1, h + 1, glass);
+
+    return pathClean1 && pathClean2;
+}
+
+function strategyByT(x, y, glass) {
+    const nearestBy1 = findNearOffsetInGlass(glass, isStrategyByT1);
+    const nearestBy2 = findNearOffsetInGlass(glass, isStrategyByT2);
+    const nearestBy3 = findNearOffsetInGlass(glass, isStrategyByT3);
+    const nearestBy4 = findNearOffsetInGlass(glass, isStrategyByT4);
+
+    if (nearestBy1) {
+        return {
+            offset: nearestBy1.x,
+            rotate: ROTATIONS.ROTATE_180,
+        };
+    }
+
+    if (nearestBy2) {
+        return {
+            offset: nearestBy2.x,
+            rotate: ROTATIONS.ROTATE_90,
+        };
+    }
+
+    if (nearestBy3) {
+        return {
+            offset: nearestBy3.x,
+            rotate: ROTATIONS.ROTATE_270,
+        };
+    }
+
+    if (nearestBy4) {
+        return {
+            offset: nearestBy4.x,
+        };
+    }
+}
+
+function isStrategyByT1(x, y, glass) {
+    if (x === 0 || x === GLASS_WIDTH) {
+        return false;
+    }
+
+    const clnPos = [
+        (y)*GLASS_WIDTH + x,
+        (y+1)*GLASS_WIDTH + x-1,
+        (y+1)*GLASS_WIDTH + x+1,
+    ];
+
+    const bsyPos = [
+        (y)*GLASS_WIDTH + x-1,
+        (y)*GLASS_WIDTH + x+1,
+        (y-1)*GLASS_WIDTH + x,
+    ];
+
+    const badClnPos = clnPos.some((position) => position >= 0 && glass[position] !== Element.EMPTY);
+    const badBsyPos = bsyPos.some((position) => position >= 0 && glass[position] !== Element.BUSY);
+
+    if (badClnPos || badBsyPos) {
+        return false;
+    }
+
+    let pathClean1 = isEmptyPath(x, y, glass);
+    let pathClean2 = isEmptyPath(x-1, y+1, glass);
+    let pathClean3 = isEmptyPath(x+1, y+1, glass);
+
+    return pathClean1 && pathClean2 && pathClean3;
+}
+
+function isStrategyByT2(x, y, glass) {
+    if (x === GLASS_WIDTH) {
+        return false;
+    }
+
+    const clnPos = [
+        (y)*GLASS_WIDTH + x,
+        (y+1)*GLASS_WIDTH + x+1,
+    ];
+
+    const bsyPos = [
+        (y)*GLASS_WIDTH + x+1,
+        (y-1)*GLASS_WIDTH + x,
+    ];
+
+    const badClnPos = clnPos.some((position) => position >= 0 && glass[position] !== Element.EMPTY);
+    const badBsyPos = bsyPos.some((position) => position >= 0 && glass[position] !== Element.BUSY);
+
+    if (badClnPos || badBsyPos) {
+        return false;
+    }
+
+    let pathClean1 = isEmptyPath(x, y, glass);
+    let pathClean2 = isEmptyPath(x+1, y+1, glass);
+
+    return pathClean1 && pathClean2;
+}
+
+function isStrategyByT3(x, y, glass) {
+    if (x === 0) {
+        return false;
+    }
+
+    const clnPos = [
+        (y+1)*GLASS_WIDTH + x-1,
+        (y)*GLASS_WIDTH + x,
+    ];
+
+    const bsyPos = [
+        (y-1)*GLASS_WIDTH + x,
+        (y)*GLASS_WIDTH + x-1,
+    ];
+
+    const badClnPos = clnPos.some((position) => position >= 0 && glass[position] !== Element.EMPTY);
+    const badBsyPos = bsyPos.some((position) => position >= 0 && glass[position] !== Element.BUSY);
+
+    if (badClnPos || badBsyPos) {
+        return false;
+    }
+
+    let pathClean1 = isEmptyPath(x-1, y+1, glass);
+    let pathClean2 = isEmptyPath(x, y, glass);
+
+    return pathClean1 && pathClean2;
+}
+
+function isStrategyByT4(x, y, glass) {
+    if (x === 0 || x === GLASS_WIDTH) {
+        return false;
+    }
+
+    const clnPos = [
+        (y)*GLASS_WIDTH + x-1,
+        (y)*GLASS_WIDTH + x,
+        (y)*GLASS_WIDTH + x+1,
+    ];
+
+    const badClnPos = clnPos.some((position) => position >= 0 && glass[position] !== Element.EMPTY);
+
+    if (badClnPos) {
+        return false;
+    }
+
+    let pathClean1 = isEmptyPath(x, y, glass);
+    let pathClean2 = isEmptyPath(x-1, y, glass);
+    let pathClean3 = isEmptyPath(x+1, y, glass);
+
+    return pathClean1 && pathClean2 && pathClean3;
 }
 
 function isEmptyPath(x, y, glass) {
     let pathClean = true;
     for (let h1 = y; h1 < GLASS_HEIGHT; h1++) {
-        if (glass[(h1)*GLASS_WIDTH + (x)] !== Element.EMPTY) {
+        if (glass[(h1) * GLASS_WIDTH + (x)] !== Element.EMPTY) {
             pathClean = false;
             break;
         }
@@ -440,246 +915,15 @@ function isEmptyPath(x, y, glass) {
     return pathClean;
 }
 
-function strategyByS(x, y, glass) {
-  let minAvailableLeft = GLASS_WIDTH;
-  let minAvailableTop = GLASS_HEIGHT;
-    let command = COMMANDS.LEFT;
-    let rotate = false;
-    let isStrategy2 = false;
-    let isStrategy1 = false;
-    for(let h = 0; h < GLASS_HEIGHT; h++) {
-        for(let w = 0; w < GLASS_WIDTH-1; w++) {
-            if (isStrategyByS2(w, h, glass)) {
-              isStrategy2 = true;
-              minAvailableLeft = w;
-              rotate = true;
-              break;
+function findNearOffsetInGlass(glass, handler) {
+    for (let y = 0; y < GLASS_HEIGHT; y++) {
+        for (let x = 0; x < GLASS_WIDTH; x++) {
+            if (handler(x, y, glass)) {
+                return {x, y};
             }
         }
-        if (minAvailableLeft < GLASS_WIDTH) {
-          minAvailableTop = h;
-          break;
-        }
     }
-    if (!isStrategy2) {
-      for(let h = 0; h < minAvailableTop; h++) {
-          for(let w = 1; w < GLASS_WIDTH; w++) {
-            if (isStrategyByS1(w, h, glass)) {
-              isStrategy1 = true;
-              minAvailableLeft = w;
-              break;
-            }
-        }
-          if (minAvailableLeft < GLASS_WIDTH) {
-            break;
-          }
-      }
-    }
-
-    if (!isStrategy1 && !isStrategy2) {
-      rotate = true;
-    }
-
-    let changeXBy = x - minAvailableLeft;
-
-    if (changeXBy < 0) {
-        command = COMMANDS.RIGHT;
-        changeXBy = -changeXBy;
-    }
-; ;
-    return `${command}=${changeXBy}${rotate ? `, ${COMMANDS.ROTATE_90}` : ''}, ${COMMANDS.DROP}`;
-}
-
-function isStrategyByS1(w, h, glass) {
-  if (w===0 || w===GLASS_WIDTH) {
-    return false;
-  }
-
-  const positions = [
-    (h)*GLASS_WIDTH + (w-1),
-    (h)*GLASS_WIDTH + (w),
-    (h+1)*GLASS_WIDTH + (w),
-    (h+1)*GLASS_WIDTH + (w+1),
-  ];
-  const bssypositions = [
-    (h-1)*GLASS_WIDTH + (w-1),
-    (h-1)*GLASS_WIDTH + (w),
-    (h)*GLASS_WIDTH + (w+1),
-  ];
-
-  const availablePositions = positions.filter((position) => glass[position] === Element.EMPTY);
-  const unavailablePositions = bssypositions.filter((position) => position<0 || glass[position] === Element.BUSY);
-  if (availablePositions.length === positions.length) {
-    if (unavailablePositions.length !== bssypositions.length) {
-        return false;
-    }
-
-    let pathClean1 = isEmptyPath(w, h, glass);
-    let pathClean2 = isEmptyPath(w-1, h, glass);
-    if (!pathClean1 || !pathClean2) {
-      return false;
-    }
-
-    return true;
-  }
-
-  return false;
-}
-
-function isStrategyByS2(w, h, glass) {
-  if (w===GLASS_WIDTH) {
-    return false;
-  }
-
-  const clnpositions = [
-    (h)*GLASS_WIDTH + (w+1),
-    (h+1)*GLASS_WIDTH + (w+1),
-    (h+1)*GLASS_WIDTH + (w),
-    (h+2)*GLASS_WIDTH + (w),
-  ];
-  const bssypositions = [
-    (h)*GLASS_WIDTH + (w),
-    (h-1)*GLASS_WIDTH + (w+1),
-  ]
-  const availablePositions = clnpositions.filter((position) => position < 0 || glass[position] === Element.EMPTY);
-  const unavailablePositions = bssypositions.filter((position) => position < 0 || glass[position] === Element.BUSY);
-  if (availablePositions.length === clnpositions.length) {
-    if (unavailablePositions.length !== bssypositions.length) {
-      return false;
-    }
-
-    let pathClean1 = isEmptyPath(w, h, glass);
-    let pathClean2 = isEmptyPath(w+1, h+1, glass);
-
-    if (!pathClean1 || !pathClean2) {
-      return false;
-    }
-    return true;
-  }
-
-  return false;
-}
-
-function strategyByZ(x, y, glass) {
-  let minAvailableLeft = GLASS_WIDTH;
-  let minAvailableTop = GLASS_HEIGHT;
-    let command = COMMANDS.LEFT;
-    let rotate = false;
-    let isStrategy2 = false;
-    let isStrategy1 = false;
-    for(let h = 0; h < GLASS_HEIGHT; h++) {
-        for(let w = 0; w < GLASS_WIDTH-1; w++) {
-            if (isStrategyByZ2(w, h, glass)) {
-              isStrategy2 = true;
-              minAvailableLeft = w - 1;
-              rotate = true;
-              break;
-            }
-        }
-        if (minAvailableLeft < GLASS_WIDTH) {
-          minAvailableTop = h;
-          break;
-        }
-    }
-    if (!isStrategy2) {
-      for(let h = 0; h < minAvailableTop; h++) {
-          for(let w = 1; w < GLASS_WIDTH; w++) {
-            if (isStrategyByZ1(w, h, glass)) {
-              isStrategy1 = true;
-              minAvailableLeft = w -1;
-              break;
-            }
-        }
-          if (minAvailableLeft < GLASS_WIDTH) {
-            break;
-          }
-      }
-    }
-
-    if (!isStrategy1 && !isStrategy2) {
-      rotate = true;
-      minAvailableLeft = 1;
-    }
-
-    let changeXBy = x - minAvailableLeft;
-
-    if (changeXBy < 0) {
-        command = COMMANDS.RIGHT;
-        changeXBy = -changeXBy;
-    }
-; ;
-    return `${command}=${changeXBy}${rotate ? `, ${COMMANDS.ROTATE_90}` : ''}, ${COMMANDS.DROP}`;
-}
-
-function isStrategyByZ1(w, h, glass) {
-  if (w===0 || w===GLASS_WIDTH) {
-    return false;
-  }
-
-  const positions = [
-    (h)*GLASS_WIDTH + (w+1),
-    (h)*GLASS_WIDTH + (w),
-    (h+1)*GLASS_WIDTH + (w),
-    (h+1)*GLASS_WIDTH + (w-1),
-  ];
-  const bssypositions = [
-    (h-1)*GLASS_WIDTH + (w+1),
-    (h-1)*GLASS_WIDTH + (w),
-    (h)*GLASS_WIDTH + (w-1),
-  ];
-
-  const availablePositions = positions.filter((position) => glass[position] === Element.EMPTY);
-  const unavailablePositions = bssypositions.filter((position) => position<0 || glass[position] === Element.BUSY);
-  if (availablePositions.length === positions.length) {
-    if (unavailablePositions.length !== bssypositions.length) {
-        return false;
-    }
-
-    let pathClean1 = isEmptyPath(w, h, glass);
-    let pathClean2 = isEmptyPath(w+1, h, glass);
-    let pathClean3 = isEmptyPath(w-1, h, glass);
-    if (!pathClean1 || !pathClean2 || !pathClean3) {
-      return false;
-    }
-
-    return true;
-  }
-
-  return false;
-}
-
-function isStrategyByZ2(w, h, glass) {
-  if (w===0) {
-    return false;
-  }
-  
-  const clnpositions = [
-    (h)*GLASS_WIDTH + (w-1),
-    (h+1)*GLASS_WIDTH + (w-1),
-    (h+1)*GLASS_WIDTH + (w),
-    (h+2)*GLASS_WIDTH + (w),
-  ];
-  const bssypositions = [
-    (h)*GLASS_WIDTH + (w),
-    (h-1)*GLASS_WIDTH + (w-1),
-  ]
-  const availablePositions = clnpositions.filter((position) => position < 0 || glass[position] === Element.EMPTY);
-  const unavailablePositions = bssypositions.filter((position) => position < 0 || glass[position] === Element.BUSY);
-  if (availablePositions.length === clnpositions.length) {
-    if (unavailablePositions.length !== bssypositions.length) {
-      return false;
-    }
-
-    let pathClean1 = isEmptyPath(w, h, glass);
-    let pathClean2 = isEmptyPath(w-1, h+1, glass);
-
-    if (!pathClean1 || !pathClean2) {
-      return false;
-    }
-    return true;
-  }
-
-  return false;
+    return null;
 }
 
 module.exports = answer;

@@ -2,9 +2,9 @@ const WebSocket = require('ws');
 const strategy = require('./strategy.js');
 
 // const SERVER_HOST = 'ec2-54-88-40-91.compute-1.amazonaws.com'
-const SERVER_HOST = '192.168.88.110';
+const SERVER_HOST = 'ec2-54-88-40-91.compute-1.amazonaws.com';
 const USER_NAME = 'Seafnox';
-const PORT = 8080;
+const PORT = 80;
 
 let server = `ws://${SERVER_HOST}:${PORT}/ws`;
 let wsClient = new WebSocket(`${server}?user=${USER_NAME}`);
